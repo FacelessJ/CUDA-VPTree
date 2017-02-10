@@ -1,6 +1,7 @@
 #include "../include/vpTree.hpp"
 #include "../include/cpu_vpTree.hpp"
 #include "../include/helper.hpp"
+#include "../include/customDistanceFuncs.hpp"
 #include "cuda_runtime.h"
 
 #include <cstdio>
@@ -54,11 +55,12 @@ int main()
 		for(int querySize = start; querySize <= end; querySize *= 10) {
 			printf("\n**********************\n");
 			printf("Performing %d queries on %d data points\n", querySize, dataSize);
-			CUDA_VPTree GPU_tree;
-			VpTree<Point, VDistance<Point> > CPU_tree;
+			cu_vp::CUDA_VPTree GPU_tree;
+			GPU_tree.injectDistanceFunc(&WrappedDistance::distanceWrap, &WrappedDistance::gpuDistanceWrap);
+			VpTree<cu_vp::Point, VDistance<cu_vp::Point> > CPU_tree;
 
-			std::vector<Point> data(dataSize);
-			std::vector<Point> queries(querySize);
+			std::vector<cu_vp::Point> data(dataSize);
+			std::vector<cu_vp::Point> queries(querySize);
 
 			if(timings)
 				fprintf(timings, "%d,%d,", dataSize, querySize);
@@ -73,8 +75,8 @@ int main()
 				queries[i].coords[1] = 0 + 100.0*(rand() / (1.0 + RAND_MAX));
 			}
 
-			std::vector<Point> dataCpy(data.size());
-			memcpy(&(dataCpy[0]), &(data[0]), sizeof(Point)*data.size());
+			std::vector<cu_vp::Point> dataCpy(data.size());
+			memcpy(&(dataCpy[0]), &(data[0]), sizeof(cu_vp::Point)*data.size());
 
 			printf("Creating GPU Tree\n");
 			auto gpu_create_t1 = Clock::now();
@@ -96,9 +98,10 @@ int main()
 
 			std::vector<int> gpu_indices;
 			std::vector<double> gpu_dists;
+			int k = 1;
 			printf("Searching GPU Tree\n");
 			auto gpu_t1 = Clock::now();
-			GPU_tree.search(queries, gpu_indices, gpu_dists);
+			GPU_tree.knnSearch(queries, k, gpu_indices, gpu_dists);
 			auto gpu_t2 = Clock::now();
 			std::chrono::duration<double> gpu_time_span = std::chrono::duration_cast<std::chrono::duration<double>>(gpu_t2 - gpu_t1);
 			if(timings)
@@ -107,9 +110,9 @@ int main()
 
 			printf("Searching CPU Tree\n");
 			auto cpu_t1 = Clock::now();
-			std::vector<Point> cpu_results;
+			std::vector<cu_vp::Point> cpu_results;
 			std::vector<double> cpu_dists;
-			std::vector<Point> out_res;
+			std::vector<cu_vp::Point> out_res;
 			std::vector<double> out_dist;
 			/*for(size_t i = 0; i < queries.size(); ++i) {
 				CPU_tree.search(queries[i], 1, &out_res, &out_dist);

@@ -4,6 +4,9 @@
 #include <iostream>
 
 
+/**
+ * Macro to wrap around all cuda* calls to check for errors
+ */
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true)
 {
@@ -15,4 +18,8 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
 	}
 }
 
+/**
+ * Checks for any error currently existing, typically after running kernel
+ * \param msg - Text string to add to output if there is an error
+ */
 void CheckCUDAError(const char *msg);

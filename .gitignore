@@ -4,3 +4,4 @@ CUDA-VPTree.sln
 CUDA-VPTree.vcxproj
 CUDA-VPTree.vcxproj.filters
 Debug/
+*.TMP
