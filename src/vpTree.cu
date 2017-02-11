@@ -38,20 +38,25 @@ namespace cu_vp
 	 * \param nodes - Pointer to root node of the tree
 	 * \param pts - Data points, mapped to nodes
 	 * \param query - Query point
+	 * \param k - How many neighbours to find
 	 * \param[out] ret_index - Indices of nearest neighbours
 	 * \param[out] ret_dist - Distances to nearest neighbours
 	 * \param distFunc - Distance function to use to compare points
 	 */
 	__device__ void KNNSearch(const CUDA_VPNode *nodes, const Point *pts,
-							  const Point &query, int *ret_index,
+							  const Point &query, const int k, int *ret_index,
 							  double *ret_dist, DistFunc distFunc)
 	{
-		int best_idx = -1;
-		double best_dist = DBL_MAX;
-
+		/** Stack for traversing the tree */
 		int nodeStack[CUDA_STACK_SIZE];
 		nodeStack[0] = -1;
 		int stackPtr = 0;
+
+		for(int i = 0; i < k; ++i) {
+			ret_dist[i] = DBL_MAX;
+		}
+
+
 		int currNodeIdx = 0; //Start at root
 		double tau = DBL_MAX;
 		while(stackPtr >= 0 || currNodeIdx != -1) {
@@ -59,9 +64,33 @@ namespace cu_vp
 				double dist = distFunc(query, pts[currNodeIdx]);
 
 				if(dist < tau) {
-					best_idx = currNodeIdx;
-					best_dist = dist;
-					tau = dist;
+					if(k == 1) {
+						ret_dist[0] = dist;
+						ret_index[0] = currNodeIdx;
+					}
+					else {
+						//insert at right position
+						for(int i = k - 2; i >= 0; --i) {
+							if(dist < ret_dist[i]) {
+								ret_dist[i + 1] = ret_dist[i];
+								ret_index[i + 1] = ret_index[i];
+								if(i == 0) {
+									ret_dist[i] = dist;
+									ret_index[i] = currNodeIdx;
+								}
+							}
+							else {
+								ret_dist[i + 1] = dist;
+								ret_index[i + 1] = currNodeIdx;
+								break;
+							}
+						}
+					}
+					//Set tau limit. Since ret_dist is instantiated with
+					//DBL_MAX at all values, we don't need to check if
+					//list is full
+					tau = ret_dist[k-1]; 
+
 				}
 
 				if(nodes[currNodeIdx].left == -1 && nodes[currNodeIdx].right == -1) {
@@ -79,8 +108,6 @@ namespace cu_vp
 					if(stackPtr > CUDA_STACK_SIZE)
 					{
 						printf("ERROR: stackPtr larger than stack size!\n");
-						best_idx = -1;
-						best_dist = -1.0;
 						break;
 					}
 				}
@@ -94,8 +121,6 @@ namespace cu_vp
 					if(stackPtr > CUDA_STACK_SIZE)
 					{
 						printf("ERROR: stackPtr larger than stack size!\n");
-						best_idx = -1;
-						best_dist = -1.0;
 						break;
 					}
 				}
@@ -104,8 +129,6 @@ namespace cu_vp
 				currNodeIdx = nodeStack[stackPtr--];
 			}
 		}
-		*ret_index = best_idx;
-		*ret_dist = best_dist;
 	}
 
 	/**
@@ -115,12 +138,13 @@ namespace cu_vp
 	 * \param num_pts - Number of points
 	 * \param query - Query point
 	 * \param num_queries - Number of queries
+	 * \param k - Number of neighbours to find for each point
 	 * \param[out] ret_index - Indices of nearest neighbours
 	 * \param[out] ret_dist - Distances to nearest neighbours
 	 * \param distFunc - Distance function to use to compare points
 	 */
 	__global__ void KNNSearchBatch(const CUDA_VPNode *nodes, const Point *pts, int num_pts,
-								   Point *queries, int num_queries, int *ret_index,
+								   Point *queries, int num_queries, const int k, int *ret_index,
 								   double *ret_dist, DistFunc distFunc)
 	{
 		int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -128,7 +152,7 @@ namespace cu_vp
 		if(idx >= num_queries)
 			return;
 
-		KNNSearch(nodes, pts, queries[idx], &ret_index[idx], &ret_dist[idx], distFunc);
+		KNNSearch(nodes, pts, queries[idx], k, &ret_index[idx * k], &ret_dist[idx * k], distFunc);
 	}
 
 	CUDA_VPTree::CUDA_VPTree() : gpu_nodes(nullptr), gpu_points(nullptr), num_points(0),
@@ -162,9 +186,7 @@ namespace cu_vp
 		}
 		gpuErrchk(cudaMalloc((void**)&gpu_points, sizeof(Point)*num_points));
 
-		size_t free, total;
-		gpuErrchk(cudaMemGetInfo(&free, &total));
-		printf("Create: Alloc'd %zd KB. %zd KB free\n", (sizeof(Point)*num_points) / 1024, free / 1024);
+		reportDeviceMemUsage("Create");
 		gpuErrchk(cudaMemcpy(gpu_points, &(data[0]), sizeof(Point)*num_points, cudaMemcpyHostToDevice));
 		tree_valid = true;
 	}
@@ -180,21 +202,17 @@ namespace cu_vp
 		int *gpu_ret_indices;
 		double *gpu_ret_dists;
 
-		indices.resize(queries.size());
-		distances.resize(queries.size());
+		indices.resize(queries.size() * k);
+		distances.resize(queries.size() * k);
 
 		gpuErrchk(cudaMalloc((void**)&gpu_queries, sizeof(Point)*queries.size()));
-		size_t free, total;
-		gpuErrchk(cudaMemGetInfo(&free, &total));
-		printf("Queries: Alloc'd %zd KB. %zd KB free\n", sizeof(Point)*queries.size() / 1024, free / 1024);
+		reportDeviceMemUsage("Queries");
 
-		gpuErrchk(cudaMalloc((void**)&gpu_ret_indices, sizeof(int)*queries.size()));
-		gpuErrchk(cudaMemGetInfo(&free, &total));
-		printf("Indices: Alloc'd %zd KB. %zd KB free\n", sizeof(int)*queries.size() / 1024, free / 1024);
+		gpuErrchk(cudaMalloc((void**)&gpu_ret_indices, sizeof(int)*indices.size()));
+		reportDeviceMemUsage("Indices");
 
-		gpuErrchk(cudaMalloc((void**)&gpu_ret_dists, sizeof(double)*queries.size()));
-		gpuErrchk(cudaMemGetInfo(&free, &total));
-		printf("Dists: Alloc'd %zd KB. %zd KB free\n", sizeof(double)*queries.size() / 1024, free / 1024);
+		gpuErrchk(cudaMalloc((void**)&gpu_ret_dists, sizeof(double)*distances.size()));
+		reportDeviceMemUsage("Dists");
 
 		gpuErrchk(cudaMemcpy(gpu_queries, &queries[0], sizeof(Point)*queries.size(), cudaMemcpyHostToDevice));
 		gpuErrchk(cudaThreadSynchronize());
@@ -202,13 +220,16 @@ namespace cu_vp
 
 		printf("Searching on GPU with %d blocks with %d threads per block\n", numBlocks, blockSize);
 
-		KNNSearchBatch << <numBlocks, blockSize >> > (gpu_nodes, gpu_points, (int)num_points, gpu_queries, (int)queries.size(), gpu_ret_indices, gpu_ret_dists, gpuDistanceFunc);
+		KNNSearchBatch << <numBlocks, blockSize >> > (gpu_nodes, gpu_points, (int)num_points,
+													  gpu_queries, (int)queries.size(), k,
+													  gpu_ret_indices, gpu_ret_dists, 
+													  gpuDistanceFunc);
 		CheckCUDAError("Batch search");
 		gpuErrchk(cudaPeekAtLastError());
 		gpuErrchk(cudaThreadSynchronize());
 
-		gpuErrchk(cudaMemcpy(&indices[0], gpu_ret_indices, sizeof(int)*queries.size(), cudaMemcpyDeviceToHost));
-		gpuErrchk(cudaMemcpy(&distances[0], gpu_ret_dists, sizeof(double)*queries.size(), cudaMemcpyDeviceToHost));
+		gpuErrchk(cudaMemcpy(&indices[0], gpu_ret_indices, sizeof(int)*indices.size(), cudaMemcpyDeviceToHost));
+		gpuErrchk(cudaMemcpy(&distances[0], gpu_ret_dists, sizeof(double)*distances.size(), cudaMemcpyDeviceToHost));
 
 		gpuErrchk(cudaFree(gpu_queries));
 		gpuErrchk(cudaFree(gpu_ret_indices));

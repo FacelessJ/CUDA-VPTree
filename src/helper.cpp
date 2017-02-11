@@ -8,3 +8,11 @@ void CheckCUDAError(const char *msg)
 		exit(EXIT_FAILURE);
 	}
 }
+
+void reportDeviceMemUsage(const char *msg)
+{
+	size_t free, total;
+	gpuErrchk(cudaMemGetInfo(&free, &total));
+	printf("%s: %zd KB free of %zd\n", msg, free / 1024, total / 1024);
+
+}

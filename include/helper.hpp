@@ -23,3 +23,9 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
  * \param msg - Text string to add to output if there is an error
  */
 void CheckCUDAError(const char *msg);
+
+/**
+* Reports current usage of device memory
+* \param msg - Text string tag to add to output
+*/
+void reportDeviceMemUsage(const char *msg);

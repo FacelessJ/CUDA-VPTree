@@ -19,7 +19,6 @@ __device__ double WrappedDistance::gpuDistanceWrap(const cu_vp::Point& a, const 
 	for(size_t i = 0; i < DIM; ++i) {
 		total = (b.coords[i] - a.coords[i]) * (b.coords[i] - a.coords[i]);
 	}
-	printf("Total found: %f\n", total);
 	return sqrt(total);
 }
 

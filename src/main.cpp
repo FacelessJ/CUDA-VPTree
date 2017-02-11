@@ -15,7 +15,6 @@ int main()
 {
 	typedef std::chrono::high_resolution_clock Clock;
 	
-	//todo: Upload to github
 	//todo: Upgrade CUDA version to retrieve k-nearest neighbours
 
 	//todo: Memory management: For ultra large trees (i.e host can hold but device cannot)
@@ -45,7 +44,7 @@ int main()
 	printf("%zd KB free of total %zd KB\n", free / 1024, total / 1024);
 
 	int start = 100;
-	int end = 1000000;
+	int end = 100;
 	FILE* timings = fopen("timings.csv", "w");
 	if(timings)
 		fprintf(timings, "Num Points,Num Queries,GPU create,CPU create,GPU search,CPU search\n");
@@ -89,7 +88,7 @@ int main()
 
 			printf("Creating CPU Tree\n");
 			auto cpu_create_t1 = Clock::now();
-			//CPU_tree.create(dataCpy);
+			CPU_tree.create(dataCpy);
 			auto cpu_create_t2 = Clock::now();
 			auto cpu_create_time_span = std::chrono::duration_cast<std::chrono::duration<double>>(cpu_create_t2 - cpu_create_t1);
 			if(timings)
@@ -114,11 +113,11 @@ int main()
 			std::vector<double> cpu_dists;
 			std::vector<cu_vp::Point> out_res;
 			std::vector<double> out_dist;
-			/*for(size_t i = 0; i < queries.size(); ++i) {
-				CPU_tree.search(queries[i], 1, &out_res, &out_dist);
-				cpu_results.push_back(out_res.front());
-				cpu_dists.push_back(out_dist.front());
-			}*/
+			for(size_t i = 0; i < queries.size(); ++i) {
+				CPU_tree.search(queries[i], k, &out_res, &out_dist);
+				cpu_results.insert(cpu_results.end(), out_res.begin(), out_res.end());
+				cpu_dists.insert(cpu_dists.end(), out_dist.begin(), out_dist.end());
+			}
 			auto cpu_t2 = Clock::now();
 			std::chrono::duration<double> cpu_time_span = std::chrono::duration_cast<std::chrono::duration<double>>(cpu_t2 - cpu_t1);
 			if(timings)
@@ -126,14 +125,16 @@ int main()
 			printf("CPU Tree searched\n");
 
 			//Verify results
-			/*bool equal = true;
+			bool equal = true;
 			double threshold = 0.000001;
-			for(size_t i = 0; i < gpu_dists.size(); ++i) {
+			printf("gpu_dists.size() = %zd, cpu_dists.size() = %zd\n", gpu_dists.size(), cpu_dists.size());
+			for(size_t i = 0; i < cpu_dists.size(); ++i) {
 				if(abs(gpu_dists[i] - cpu_dists[i]) > threshold) {
 					equal = false;
+					printf("%zd: gpu=%f, cpu=%f\n", i, gpu_dists[i], cpu_dists[i]);
 				}
 			}
-			printf("Verification: %s\n", equal ? "valid" : "invalid");*/
+			printf("Verification: %s\n", equal ? "valid" : "invalid");
 		}
 	}
 	if(timings)
