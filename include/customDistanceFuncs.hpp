@@ -15,31 +15,18 @@
  * global namespace
  */
 
-
-
 class WrappedDistance {
 public:
 	/** Custom data required by distance function */
 	static double wrap;
 
 	/** Host side custom distance function */
-	static double distanceWrap(const cu_vp::Point& a, const cu_vp::Point& b)
-	{
-		double total = 0.;
-		for(size_t i = 0; i < DIM; ++i) {
-			total = (b.coords[i] - a.coords[i]) * (b.coords[i] - a.coords[i]);
-		}
-		return sqrt(total);
-	}
+	static double distanceWrap(const cu_vp::Point& a, const cu_vp::Point& b);
+
 	/** Device side custom distance function */
-	static __device__ double gpuDistanceWrap(const cu_vp::Point& a, const cu_vp::Point& b)
-	{
-		double total = 0.;
-		for(size_t i = 0; i < DIM; ++i) {
-			total = (b.coords[i] - a.coords[i]) * (b.coords[i] - a.coords[i]);
-		}
-		return sqrt(total);
-	}
+	static __device__ double gpuDistanceWrap(const cu_vp::Point& a, const cu_vp::Point& b);
+
+	/** Get host side pointer to device function */
+	static cu_vp::DistFunc getFuncPtr();
 };
 
-double WrappedDistance::wrap = 1;

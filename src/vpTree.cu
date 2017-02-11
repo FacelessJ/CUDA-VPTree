@@ -31,6 +31,8 @@ namespace cu_vp
 		return sqrt(total);
 	}
 
+	__device__ DistFunc g_gpuDistanceFunc = gpu_euclidean_distance;
+
 	/**
 	 * Performs a knn search for a single point
 	 * \param nodes - Pointer to root node of the tree
@@ -130,8 +132,10 @@ namespace cu_vp
 	}
 
 	CUDA_VPTree::CUDA_VPTree() : gpu_nodes(nullptr), gpu_points(nullptr), num_points(0),
-		tree_valid(false), distanceFunc(&euclidean_distance), gpuDistanceFunc(gpu_euclidean_distance)
-	{}
+		tree_valid(false), distanceFunc(&euclidean_distance), gpuDistanceFunc(nullptr)
+	{
+		gpuErrchk(cudaMemcpyFromSymbol(&gpuDistanceFunc, g_gpuDistanceFunc, sizeof(DistFunc)));
+	}
 
 	CUDA_VPTree::~CUDA_VPTree()
 	{

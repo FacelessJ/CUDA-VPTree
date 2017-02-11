@@ -56,7 +56,7 @@ int main()
 			printf("\n**********************\n");
 			printf("Performing %d queries on %d data points\n", querySize, dataSize);
 			cu_vp::CUDA_VPTree GPU_tree;
-			GPU_tree.injectDistanceFunc(&WrappedDistance::distanceWrap, &WrappedDistance::gpuDistanceWrap);
+			GPU_tree.injectDistanceFunc(&cu_vp::euclidean_distance, WrappedDistance::getFuncPtr());
 			VpTree<cu_vp::Point, VDistance<cu_vp::Point> > CPU_tree;
 
 			std::vector<cu_vp::Point> data(dataSize);
