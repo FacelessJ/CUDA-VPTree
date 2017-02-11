@@ -33,6 +33,8 @@ namespace cu_vp
 		double coords[DIM];
 	};
 
+	typedef double(*DistFunc)(const Point& a, const Point& b);
+
 	/**
 	 * Default distance function to use to create the VP tree (CPU side). Can be any distance function
 	 * as long as it abides triangle inequality
@@ -42,10 +44,8 @@ namespace cu_vp
 	/**
 	 * Default distance function to use to create the VP tree (GPU side). Can be any distance function
 	 * as long as it abides triangle inequality.
-	 * Note: For some reason compiler complains that params must be pointers rather than
-	 * references. Not sure why this is.
 	 */
-	__device__ double gpu_euclidean_distance(const Point* a, const Point* b);
+	__device__ double gpu_euclidean_distance(const Point& a, const Point& b);
 
 
 
@@ -85,19 +85,19 @@ namespace cu_vp
 		* Performs a batched fixed radius search.
 		* \param queries - Points to find all neighbours within radius
 		* \param fr - Radius to use
-		* \param[out] indices - Indices of the points within distance to each query point
-		* \param[out] distances - Distances of the points within distance to each query point
+		* \param[out] count - Number of points with range of each query
 		*/
 		void frSearch(const std::vector<Point> &queries, const double fr,
-					  std::vector<int> &indices, std::vector<double> &distances);
+					  std::vector<int> &count);
 
 		/**
 		 * Replace the default euclidean distance functions with some other metric
 		 * \param newDistanceFunc - Distance function to be used on host (creation of VP Tree)
-		 * \param newGpuDistanceFunc - Distance function to be used on the device (searches)
+		 * \param newGpuDistanceFunc - Distance function to be used on the device (searches). Function needs a
+		 *								__device__ attribute attached
 		 */
-		void injectDistanceFunc(double(*newDistanceFunc)(const Point& a, const Point& b),
-								/*__device__*/ double(*newGpuDistanceFunc)(const Point* a, const Point* b));
+		void injectDistanceFunc(DistFunc newDistanceFunc,
+								/*__device__*/ DistFunc newGpuDistanceFunc);
 	private:
 		/**
 		 * Builds the VP tree
@@ -123,8 +123,8 @@ namespace cu_vp
 		bool tree_valid;
 
 		/** Distance functions */
-		double(*distanceFunc)(const Point& a, const Point& b);
-		double(*gpuDistanceFunc)(const Point* a, const Point* b);
+		DistFunc distanceFunc;
+		DistFunc gpuDistanceFunc;
 
 		struct DistComparator
 		{

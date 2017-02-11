@@ -23,10 +23,10 @@ namespace cu_vp
 		return sqrt(total);
 	}
 
-	__device__ double gpu_euclidean_distance(const Point* a, const Point* b) {
+	__device__ double gpu_euclidean_distance(const Point& a, const Point& b) {
 		double total = 0.;
 		for(size_t i = 0; i < DIM; ++i) {
-			total = (b->coords[i] - a->coords[i]) * (b->coords[i] - a->coords[i]);
+			total = (b.coords[i] - a.coords[i]) * (b.coords[i] - a.coords[i]);
 		}
 		return sqrt(total);
 	}
@@ -42,7 +42,7 @@ namespace cu_vp
 	 */
 	__device__ void KNNSearch(const CUDA_VPNode *nodes, const Point *pts,
 							  const Point &query, int *ret_index,
-							  double *ret_dist, double(*distFunc)(const Point* a, const Point* b))
+							  double *ret_dist, DistFunc distFunc)
 	{
 		int best_idx = -1;
 		double best_dist = DBL_MAX;
@@ -54,7 +54,7 @@ namespace cu_vp
 		double tau = DBL_MAX;
 		while(stackPtr >= 0 || currNodeIdx != -1) {
 			if(currNodeIdx != -1) {
-				double dist = distFunc(&query, &pts[currNodeIdx]);
+				double dist = distFunc(query, pts[currNodeIdx]);
 
 				if(dist < tau) {
 					best_idx = currNodeIdx;
@@ -119,7 +119,7 @@ namespace cu_vp
 	 */
 	__global__ void KNNSearchBatch(const CUDA_VPNode *nodes, const Point *pts, int num_pts,
 								   Point *queries, int num_queries, int *ret_index,
-								   double *ret_dist, double(*distFunc)(const Point* a, const Point* b))
+								   double *ret_dist, DistFunc distFunc)
 	{
 		int idx = blockIdx.x*blockDim.x + threadIdx.x;
 
@@ -139,8 +139,8 @@ namespace cu_vp
 		gpuErrchk(cudaFree(gpu_points));
 	}
 
-	void CUDA_VPTree::injectDistanceFunc(double(*newDistanceFunc)(const Point& a, const Point& b),
-										 double(*newGpuDistanceFunc)(const Point* a, const Point* b))
+	void CUDA_VPTree::injectDistanceFunc(DistFunc newDistanceFunc,
+										 DistFunc newGpuDistanceFunc)
 	{
 		distanceFunc = newDistanceFunc;
 		gpuDistanceFunc = newGpuDistanceFunc;
@@ -211,10 +211,13 @@ namespace cu_vp
 		gpuErrchk(cudaFree(gpu_ret_dists));
 	}
 
-	void CUDA_VPTree::frSearch(const std::vector<Point>& queries, const double fr, std::vector<int>& indices, std::vector<double>& distances)
+	void CUDA_VPTree::frSearch(const std::vector<Point>& queries, const double fr, std::vector<int>& count)
 	{
 		/** \todo Implement this */
-		/** Need to consider how to deal with dynamic number of points being returned */
+		/** Need to consider how to deal with dynamic number of points being returned.
+		    Going to not return the individual distances to each point, nor the indices,
+			but instead the count, and provide a function/user data pointer to apply
+			operation to each point within threshold*/
 		/** Possibly have another version with const std::vector<double> fr which defines
 		 * a separate fr threshold for each query */
 	}

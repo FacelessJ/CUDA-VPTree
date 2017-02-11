@@ -32,11 +32,11 @@ public:
 		return sqrt(total);
 	}
 	/** Device side custom distance function */
-	static __device__ double gpuDistanceWrap(const cu_vp::Point* a, const cu_vp::Point* b)
+	static __device__ double gpuDistanceWrap(const cu_vp::Point& a, const cu_vp::Point& b)
 	{
 		double total = 0.;
 		for(size_t i = 0; i < DIM; ++i) {
-			total = (b->coords[i] - a->coords[i]) * (b->coords[i] - a->coords[i]);
+			total = (b.coords[i] - a.coords[i]) * (b.coords[i] - a.coords[i]);
 		}
 		return sqrt(total);
 	}
