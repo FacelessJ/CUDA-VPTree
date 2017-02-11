@@ -23,7 +23,7 @@ public:
 	static double wrap;
 
 	/** Host side custom distance function */
-	static double distanceWrap(const Point& a, const Point& b)
+	static double distanceWrap(const cu_vp::Point& a, const cu_vp::Point& b)
 	{
 		double total = 0.;
 		for(size_t i = 0; i < DIM; ++i) {
@@ -32,7 +32,7 @@ public:
 		return sqrt(total);
 	}
 	/** Device side custom distance function */
-	static __device__ double gpuDistanceWrap(const Point* a, const Point* b)
+	static __device__ double gpuDistanceWrap(const cu_vp::Point* a, const cu_vp::Point* b)
 	{
 		double total = 0.;
 		for(size_t i = 0; i < DIM; ++i) {
