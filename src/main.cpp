@@ -15,8 +15,6 @@ int main()
 {
 	typedef std::chrono::high_resolution_clock Clock;
 	
-	//todo: Upgrade CUDA version to retrieve k-nearest neighbours
-
 	//todo: Memory management: For ultra large trees (i.e host can hold but device cannot)
 	//		implement a step down algorithm, which processes the VP tree in halves (or quarters, etc)
 	//		whereby:
@@ -107,6 +105,9 @@ int main()
 				fprintf(timings, "%f,", gpu_time_span.count());
 			printf("GPU Tree searched\n");
 
+			std::vector<int> gpu_counts;
+			GPU_tree.frSearch(queries, 1.0, gpu_counts);
+
 			printf("Searching CPU Tree\n");
 			auto cpu_t1 = Clock::now();
 			std::vector<cu_vp::Point> cpu_results;
@@ -125,7 +126,7 @@ int main()
 			printf("CPU Tree searched\n");
 
 			//Verify results
-			bool equal = true;
+			/*bool equal = true;
 			double threshold = 0.000001;
 			printf("gpu_dists.size() = %zd, cpu_dists.size() = %zd\n", gpu_dists.size(), cpu_dists.size());
 			for(size_t i = 0; i < cpu_dists.size(); ++i) {
@@ -134,7 +135,7 @@ int main()
 					printf("%zd: gpu=%f, cpu=%f\n", i, gpu_dists[i], cpu_dists[i]);
 				}
 			}
-			printf("Verification: %s\n", equal ? "valid" : "invalid");
+			printf("Verification: %s\n", equal ? "valid" : "invalid");*/
 		}
 	}
 	if(timings)

@@ -56,7 +56,6 @@ namespace cu_vp
 			ret_dist[i] = DBL_MAX;
 		}
 
-
 		int currNodeIdx = 0; //Start at root
 		double tau = DBL_MAX;
 		while(stackPtr >= 0 || currNodeIdx != -1) {
@@ -153,6 +152,81 @@ namespace cu_vp
 			return;
 
 		KNNSearch(nodes, pts, queries[idx], k, &ret_index[idx * k], &ret_dist[idx * k], distFunc);
+	}
+
+	
+
+	__device__ void FRSearch(const CUDA_VPNode *nodes, const Point *pts,
+							 const Point& query, const double fr, int *ret_count,
+							 DistFunc distFunc)
+	{
+		/** Stack for traversing the tree */
+		int nodeStack[CUDA_STACK_SIZE];
+		nodeStack[0] = -1;
+		int stackPtr = 0;
+
+		int count = 0;
+
+		int currNodeIdx = 0; //Start at root
+		const double tau = fr; //Only search this radius
+
+		while(stackPtr >= 0 || currNodeIdx != -1) {
+			if(currNodeIdx != -1) {
+				double dist = distFunc(query, pts[currNodeIdx]);
+
+				if(dist <= tau) {
+					++count;
+				}
+
+				if(nodes[currNodeIdx].left == -1 && nodes[currNodeIdx].right == -1) {
+					currNodeIdx = -1;
+					continue;
+				}
+
+				if(dist < nodes[currNodeIdx].threshold) {
+					if(dist + tau >= nodes[currNodeIdx].threshold) {
+						nodeStack[++stackPtr] = nodes[currNodeIdx].right;
+					}
+					if(dist - tau <= nodes[currNodeIdx].threshold) {
+						nodeStack[++stackPtr] = nodes[currNodeIdx].left;
+					}
+					if(stackPtr > CUDA_STACK_SIZE)
+					{
+						printf("ERROR: stackPtr larger than stack size!\n");
+						break;
+					}
+				}
+				else {
+					if(dist - tau <= nodes[currNodeIdx].threshold) {
+						nodeStack[++stackPtr] = nodes[currNodeIdx].left;
+					}
+					if(dist + tau >= nodes[currNodeIdx].threshold) {
+						nodeStack[++stackPtr] = nodes[currNodeIdx].right;
+					}
+					if(stackPtr > CUDA_STACK_SIZE)
+					{
+						printf("ERROR: stackPtr larger than stack size!\n");
+						break;
+					}
+				}
+			}
+			if(stackPtr >= 0) {
+				currNodeIdx = nodeStack[stackPtr--];
+			}
+		}
+		*ret_count = count;
+	}
+
+	__global__ void FRSearchBatch(const CUDA_VPNode *nodes, const Point *pts, int num_pts,
+								  Point *queries, int num_queries, const double fr, int *ret_count,
+								  DistFunc distFunc)
+	{
+		int idx = blockIdx.x*blockDim.x + threadIdx.x;
+
+		if(idx >= num_queries)
+			return;
+
+		FRSearch(nodes, pts, queries[idx], fr, &ret_count[idx], distFunc);
 	}
 
 	CUDA_VPTree::CUDA_VPTree() : gpu_nodes(nullptr), gpu_points(nullptr), num_points(0),
@@ -258,6 +332,30 @@ namespace cu_vp
 			operation to each point within threshold*/
 		/** Possibly have another version with const std::vector<double> fr which defines
 		 * a separate fr threshold for each query */
+		if(!tree_valid)
+			return;
+
+		int blockSize = 512;
+		int numBlocks = ((int)queries.size() + blockSize - 1) / blockSize;
+
+		Point *gpu_queries;
+		int *gpu_ret_counts;
+
+		count.resize(queries.size());
+
+		gpuErrchk(cudaMalloc((void**)&gpu_queries, sizeof(Point)*queries.size()));
+		gpuErrchk(cudaMalloc((void**)&gpu_ret_counts, sizeof(int)*count.size()));
+		gpuErrchk(cudaMemcpy(gpu_queries, &queries[0], sizeof(Point)*queries.size(), cudaMemcpyHostToDevice));
+
+		FRSearchBatch << <numBlocks, blockSize >> > (gpu_nodes, gpu_points, (int)num_points, gpu_queries,
+			(int)queries.size(), fr, gpu_ret_counts, gpuDistanceFunc);
+
+		gpuErrchk(cudaThreadSynchronize());
+		printf("Countsize: %zd\n", count.size());
+		gpuErrchk(cudaMemcpy(&count[0], gpu_ret_counts, sizeof(int)*count.size(), cudaMemcpyDeviceToHost));
+
+		gpuErrchk(cudaFree(gpu_queries));
+		gpuErrchk(cudaFree(gpu_ret_counts));
 	}
 
 
