@@ -90,6 +90,11 @@ namespace cu_vp
 		void frSearch(const std::vector<Point> &queries, const double fr,
 					  std::vector<int> &count);
 
+		void CUDA_VPTree::frSearch(const std::vector<Point>& queries,
+								   const std::vector<double> fr,
+								   std::vector<int>& count);
+
+
 		/**
 		 * Replace the default euclidean distance functions with some other metric
 		 * \param newDistanceFunc - Distance function to be used on host (creation of VP Tree)

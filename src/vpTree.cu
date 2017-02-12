@@ -229,6 +229,18 @@ namespace cu_vp
 		FRSearch(nodes, pts, queries[idx], fr, &ret_count[idx], distFunc);
 	}
 
+	__global__ void FRSearchBatch(const CUDA_VPNode *nodes, const Point *pts, int num_pts,
+								  Point *queries, int num_queries, const double *fr, int *ret_count,
+								  DistFunc distFunc)
+	{
+		int idx = blockIdx.x*blockDim.x + threadIdx.x;
+
+		if(idx >= num_queries)
+			return;
+
+		FRSearch(nodes, pts, queries[idx], fr[idx], &ret_count[idx], distFunc);
+	}
+
 	CUDA_VPTree::CUDA_VPTree() : gpu_nodes(nullptr), gpu_points(nullptr), num_points(0),
 		tree_valid(false), distanceFunc(&euclidean_distance), gpuDistanceFunc(nullptr)
 	{
@@ -325,13 +337,10 @@ namespace cu_vp
 
 	void CUDA_VPTree::frSearch(const std::vector<Point>& queries, const double fr, std::vector<int>& count)
 	{
-		/** \todo Implement this */
 		/** Need to consider how to deal with dynamic number of points being returned.
 		    Going to not return the individual distances to each point, nor the indices,
 			but instead the count, and provide a function/user data pointer to apply
 			operation to each point within threshold*/
-		/** Possibly have another version with const std::vector<double> fr which defines
-		 * a separate fr threshold for each query */
 		if(!tree_valid)
 			return;
 
@@ -349,6 +358,41 @@ namespace cu_vp
 
 		FRSearchBatch << <numBlocks, blockSize >> > (gpu_nodes, gpu_points, (int)num_points, gpu_queries,
 			(int)queries.size(), fr, gpu_ret_counts, gpuDistanceFunc);
+
+		gpuErrchk(cudaThreadSynchronize());
+		printf("Countsize: %zd\n", count.size());
+		gpuErrchk(cudaMemcpy(&count[0], gpu_ret_counts, sizeof(int)*count.size(), cudaMemcpyDeviceToHost));
+
+		gpuErrchk(cudaFree(gpu_queries));
+		gpuErrchk(cudaFree(gpu_ret_counts));
+	}
+
+	void CUDA_VPTree::frSearch(const std::vector<Point>& queries, const std::vector<double> fr, std::vector<int>& count)
+	{
+		/** Need to consider how to deal with dynamic number of points being returned.
+		Going to not return the individual distances to each point, nor the indices,
+		but instead the count, and provide a function/user data pointer to apply
+		operation to each point within threshold*/
+		if(!tree_valid || queries.size() != fr.size())
+			return;
+
+		int blockSize = 512;
+		int numBlocks = ((int)queries.size() + blockSize - 1) / blockSize;
+
+		Point *gpu_queries;
+		double *gpu_frs;
+		int *gpu_ret_counts;
+
+		count.resize(queries.size());
+
+		gpuErrchk(cudaMalloc((void**)&gpu_queries, sizeof(Point)*queries.size()));
+		gpuErrchk(cudaMalloc((void**)&gpu_frs, sizeof(Point)*fr.size()));
+		gpuErrchk(cudaMalloc((void**)&gpu_ret_counts, sizeof(int)*count.size()));
+		gpuErrchk(cudaMemcpy(gpu_queries, &queries[0], sizeof(Point)*queries.size(), cudaMemcpyHostToDevice));
+		gpuErrchk(cudaMemcpy(gpu_frs, &fr[0], sizeof(Point)*fr.size(), cudaMemcpyHostToDevice));
+
+		FRSearchBatch << <numBlocks, blockSize >> > (gpu_nodes, gpu_points, (int)num_points, gpu_queries,
+			(int)queries.size(), gpu_frs, gpu_ret_counts, gpuDistanceFunc);
 
 		gpuErrchk(cudaThreadSynchronize());
 		printf("Countsize: %zd\n", count.size());

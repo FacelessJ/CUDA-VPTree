@@ -106,7 +106,10 @@ int main()
 			printf("GPU Tree searched\n");
 
 			std::vector<int> gpu_counts;
-			GPU_tree.frSearch(queries, 1.0, gpu_counts);
+			GPU_tree.frSearch(queries, gpu_dists, gpu_counts);
+			/*for(size_t i = 0; i < gpu_counts.size(); ++i) {
+				printf("%d : %d\n", i, gpu_counts[i]);
+			}*/
 
 			printf("Searching CPU Tree\n");
 			auto cpu_t1 = Clock::now();
