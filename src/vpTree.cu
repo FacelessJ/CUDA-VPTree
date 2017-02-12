@@ -170,8 +170,21 @@ namespace cu_vp
 	void CUDA_VPTree::injectDistanceFunc(DistFunc newDistanceFunc,
 										 DistFunc newGpuDistanceFunc)
 	{
-		distanceFunc = newDistanceFunc;
-		gpuDistanceFunc = newGpuDistanceFunc;
+		if(newDistanceFunc == nullptr) {
+			printf("Setting host dist function to nullptr. Defaulting to euclidean distance.\n");
+			distanceFunc = &euclidean_distance;
+		}
+		else {
+			distanceFunc = newDistanceFunc;
+		}
+		if(newGpuDistanceFunc == nullptr) {
+			printf("Setting device dist function to nullptr. Defaulting to euclidean distance.\n" \
+					"Confirm Relocatable Device Code (-rdc) is enabled if code is in another compilation unit.\n");
+			gpuErrchk(cudaMemcpyFromSymbol(&gpuDistanceFunc, g_gpuDistanceFunc, sizeof(DistFunc)));
+		}
+		else {
+			gpuDistanceFunc = newGpuDistanceFunc;
+		}
 	}
 
 	void CUDA_VPTree::createVPTree(std::vector<Point> &data)

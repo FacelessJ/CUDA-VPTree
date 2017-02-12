@@ -5,3 +5,4 @@ CUDA-VPTree.vcxproj
 CUDA-VPTree.vcxproj.filters
 Debug/
 *.TMP
+x64/
