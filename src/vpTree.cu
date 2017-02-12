@@ -284,8 +284,6 @@ namespace cu_vp
 			gpu_points = nullptr;
 		}
 		gpuErrchk(cudaMalloc((void**)&gpu_points, sizeof(Point)*num_points));
-
-		reportDeviceMemUsage("Create");
 		gpuErrchk(cudaMemcpy(gpu_points, &(data[0]), sizeof(Point)*num_points, cudaMemcpyHostToDevice));
 		tree_valid = true;
 	}
@@ -305,19 +303,11 @@ namespace cu_vp
 		distances.resize(queries.size() * k);
 
 		gpuErrchk(cudaMalloc((void**)&gpu_queries, sizeof(Point)*queries.size()));
-		reportDeviceMemUsage("Queries");
-
 		gpuErrchk(cudaMalloc((void**)&gpu_ret_indices, sizeof(int)*indices.size()));
-		reportDeviceMemUsage("Indices");
-
 		gpuErrchk(cudaMalloc((void**)&gpu_ret_dists, sizeof(double)*distances.size()));
-		reportDeviceMemUsage("Dists");
-
 		gpuErrchk(cudaMemcpy(gpu_queries, &queries[0], sizeof(Point)*queries.size(), cudaMemcpyHostToDevice));
 		gpuErrchk(cudaThreadSynchronize());
 		CheckCUDAError("Pre Batch search");
-
-		printf("Searching on GPU with %d blocks with %d threads per block\n", numBlocks, blockSize);
 
 		KNNSearchBatch << <numBlocks, blockSize >> > (gpu_nodes, gpu_points, (int)num_points,
 													  gpu_queries, (int)queries.size(), k,
@@ -360,7 +350,6 @@ namespace cu_vp
 			(int)queries.size(), fr, gpu_ret_counts, gpuDistanceFunc);
 
 		gpuErrchk(cudaThreadSynchronize());
-		printf("Countsize: %zd\n", count.size());
 		gpuErrchk(cudaMemcpy(&count[0], gpu_ret_counts, sizeof(int)*count.size(), cudaMemcpyDeviceToHost));
 
 		gpuErrchk(cudaFree(gpu_queries));
@@ -395,7 +384,6 @@ namespace cu_vp
 			(int)queries.size(), gpu_frs, gpu_ret_counts, gpuDistanceFunc);
 
 		gpuErrchk(cudaThreadSynchronize());
-		printf("Countsize: %zd\n", count.size());
 		gpuErrchk(cudaMemcpy(&count[0], gpu_ret_counts, sizeof(int)*count.size(), cudaMemcpyDeviceToHost));
 
 		gpuErrchk(cudaFree(gpu_queries));
@@ -455,10 +443,6 @@ namespace cu_vp
 			gpu_nodes = nullptr;
 		}
 		gpuErrchk(cudaMalloc((void**)&gpu_nodes, sizeof(CUDA_VPNode)*num_points));
-		size_t free, total;
-		gpuErrchk(cudaMemGetInfo(&free, &total));
-		printf("Build: Alloc'd %zd KB. %zd KB free\n", sizeof(CUDA_VPNode)*num_points / 1024, free / 1024);
-
 		gpuErrchk(cudaMemcpy(gpu_nodes, &(cpu_nodes[0]), sizeof(CUDA_VPNode)*num_points, cudaMemcpyHostToDevice));
 	}
 }
